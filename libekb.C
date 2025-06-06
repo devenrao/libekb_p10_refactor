@@ -18,6 +18,7 @@ extern "C" {
 #include <return_code.H>
 #include <set_sbe_error.H>
 
+#include <cstring>
 #include <vector>
 
 static libekb_log_func_t __libekb_log_fn;
@@ -174,7 +175,6 @@ void libekb_get_ffdc_helper(FFDC& ffdc, fapi2::ReturnCode& rc)
 		    "No FFDC, libekb_get_ffdc() called for success case";
 		return;
 	}
-
 	if (rc.getCreator() == fapi2::ReturnCode::CREATOR_HWP) {
 		ffdc.ffdc_type = FFDC_TYPE_HWP;
 		get_HWPErrorInfo(rc, ffdc.hwp_errorinfo);
@@ -265,4 +265,48 @@ void libekb_get_sbe_ffdc(FFDC& ffdc, const sbeFfdcPacketType& ffdc_pkt,
 	// For clock hwp error happened inside SBE context, the proc
 	// target should not to be deconfigured
 	fapi2::process_HW_callout(ffdc, false);
+}
+
+void libekb_parse_sbe_ffdc_pkt(uint32_t fapiRc,
+			       const std::vector<uint8_t>& blobData,
+			       int chipPos, uint32_t sbeChipType, FFDC& ffdc)
+{
+	using namespace fapi2;
+	libekb_log(LIBEKB_LOG_INF,
+		   "chip pos: %d  chip type 0x%08X  fapirc: 0x%x length: %zu\n",
+		   chipPos, sbeChipType, fapiRc, blobData.size());
+
+	constexpr size_t sbeFfdcSize = sizeof(sbeFfdc_t);
+	std::vector<sbeFfdc_t> ffdc_endian;
+	const sbeFfdc_t* sbe_ffdc =
+	    reinterpret_cast<const sbeFfdc_t*>(blobData.data());
+	size_t size = blobData.size();
+	// Parse and convert all entries
+	for (size_t i = 0; i < size; i += sbeFfdcSize, sbe_ffdc++) {
+		sbeFfdc_t ffdc_data;
+		ffdc_data.size = ntohl(sbe_ffdc->size);
+		// Special type FFDC size need endianess conversion in data.
+		// TODO: Endianess for size "1, 2, 4" need to revisit.
+		if ((ffdc_data.size == EI_FFDC_SIZE_TARGET) ||
+		    (ffdc_data.size == EI_FFDC_SIZE_BUF) ||
+		    (ffdc_data.size == EI_FFDC_SIZE_VBUF) ||
+		    (ffdc_data.size == EI_FFDC_MAX_SIZE)) {
+			ffdc_data.data = be64toh(sbe_ffdc->data);
+		} else {
+			ffdc_data.data = sbe_ffdc->data;
+		}
+		ffdc_endian.push_back(ffdc_data);
+	}
+	// Convert to FAPI RC
+	fapi2::ReturnCode rc;
+	if (ffdc_endian.size() > 0) {
+		FAPI_SET_SBE_ERROR(rc, fapiRc, ffdc_endian.data(), chipPos,
+				   static_cast<fapi2::TargetType>(sbeChipType));
+
+		libekb_log(LIBEKB_LOG_INF, " New FAPI RC: 0x%x\n", rc);
+
+		// Fill FFDC struct
+		libekb_get_ffdc_helper(ffdc, rc);
+		fapi2::process_HW_callout(ffdc, false);
+	}
 }

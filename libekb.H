@@ -1,6 +1,7 @@
 #ifndef __LIBEKB_H__
 #define __LIBEKB_H__
 
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <vector>
@@ -14,6 +15,7 @@
 
 extern "C" {
 #include <stdarg.h>
+
 #include <cstdint>
 
 typedef void (*libekb_log_func_t)(void *private_data, const char *fmt,
@@ -160,9 +162,9 @@ struct FFDC {
  * @brief SBE FFDC packet
  */
 typedef struct sbeFfdcPacket {
-	uint32_t fapiRc;	    // Fapi Rc
-	uint32_t ffdcLengthInWords; // length of Fapi FFDC data
-	uint32_t *ffdcData = nullptr;	    // fapi FFDC data
+	uint32_t fapiRc;	      // Fapi Rc
+	uint32_t ffdcLengthInWords;   // length of Fapi FFDC data
+	uint32_t *ffdcData = nullptr; // fapi FFDC data
 	~sbeFfdcPacket()
 	{
 		// freeup the ffdcData allocated memory
@@ -201,4 +203,8 @@ void libekb_get_ffdc(FFDC &ffdc);
  */
 void libekb_get_sbe_ffdc(FFDC &ffdc, const sbeFfdcPacketType &ffdc_pkt,
 			 int chipPos, uint32_t sbeChipType);
+
+void libekb_parse_sbe_ffdc_pkt(uint32_t fapiRc,
+			       const std::vector<uint8_t> &blobData,
+			       int chipPos, uint32_t sbeChipType, FFDC &ffdc);
 #endif /* __LIBEKB_H__ */

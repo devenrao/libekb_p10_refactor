@@ -31,9 +31,6 @@
 #include <time.h>
 #include <utils.H>
 
-extern "C" {
-#include <libpdbg.h>
-}
 
 namespace fapi2
 {
@@ -101,48 +98,6 @@ void Assert(bool i_expression)
 }
 
 thread_local ReturnCode current_err;
-
-ReturnCode plat_access_attr_SETMACRO(const char *attr, struct pdbg_target *tgt,
-				     uint32_t size, uint32_t count, void *val)
-{
-	/* NULL targets use pdbg_dt_root */
-	if (!tgt) {
-		/* TODO: This should never happen but we've only got a partial
-		 * implementation of targetting so far */
-		FAPI_INF("NULL target reading attribute not implemented "
-			 "reading %s. Using pdbg_dt_root for the moment.\n",
-			 attr);
-		tgt = pdbg_target_root();
-	}
-
-	if (!pdbg_target_set_attribute(tgt, attr, size, count, val)) {
-		FAPI_ERR("Failed to write attribute %s\n", attr);
-		return FAPI2_RC_FALSE;
-	}
-
-	return FAPI2_RC_SUCCESS;
-}
-
-ReturnCode plat_access_attr_GETMACRO(const char *attr, struct pdbg_target *tgt,
-				     uint32_t size, uint32_t count, void *val)
-{
-	/* NULL targets use pdbg_dt_root */
-	if (!tgt) {
-		/* TODO: This should never happen but we've only got a partial
-		 * implementation of targetting so far */
-		FAPI_INF("NULL target reading attribute %s. Using pdbg_dt_root "
-			 "for the moment.\n",
-			 attr);
-		tgt = pdbg_target_root();
-	}
-
-	if (!pdbg_target_get_attribute(tgt, attr, size, count, val)) {
-		FAPI_ERR("Failed to read attribute %s\n", attr);
-		return FAPI2_RC_FALSE;
-	}
-
-	return FAPI2_RC_SUCCESS;
-}
 
 std::string plat_HwCalloutEnum_tostring(HwCallouts::HwCallout hwcallout)
 {

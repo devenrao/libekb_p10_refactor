@@ -1,5 +1,7 @@
 #include "plat_error.H"
 #include "plat_utils.H"
+#include <targeting/target.H>
+#include <targetsvc/target_service.H>
 
 namespace fapi2
 {
@@ -16,24 +18,19 @@ namespace fapi2
 bool clock_redundancy_is_enabled()
 {
 	auto constexpr NUM_CLOCK_FOR_REDUNDANT_MODE = 2;
+	uint16_t clock_count = 0;
 
-	struct pdbg_target *clock_target;
-	uint8_t clock_count = 0;
-	uint8_t buf[5];
-	pdbg_for_each_class_target("oscrefclk", clock_target)
-	{
-		if (!pdbg_target_get_attribute_packed(
-			clock_target, "ATTR_HWAS_STATE", "41", 1, buf)) {
-			FAPI_ERR("Can not read(%s) ATTR_HWAS_STATE attribute",
-				 pdbg_target_path(clock_target));
-			continue;
-		}
-		// isFuntional bit is stored in 4th byte and bit 3 position
-		// in HWAS_STATE
-		if (buf[4] & 0x20)
-			clock_count++;
-	}
-
+    PredicateAttrVal<ATTR_TYPE> pred(TYPE_OSCREFCLK);
+    auto top = ts.getTopLevelTarget();
+    for (auto&& tgt :
+         ts.getAssociated(top, AssociationType::childByPhysical,
+                          RecursionLevel::all, &pred))
+    {
+        if(tgt->getAttr<ATTR_HWAS_STATE>().functional)
+        {
+            clock_count += 1;
+        }
+    }
 	if (clock_count != 1 && clock_count != 2) {
 		FAPI_ERR("Invalid number (%d) of clock target found",
 			 clock_count);
@@ -68,62 +65,42 @@ bool clock_redundancy_is_enabled()
  */
 void clock_callout_info(FFDC &ffdc, HWCallout &hwCallout)
 {
-	// Get oscrefclock pdbg target based clock position
-	auto clk_pos = hwCallout.clkPos;
-	struct pdbg_target *clock_target;
-	uint8_t attr_clk_pos = 0;
-	pdbg_for_each_class_target("oscrefclk", clock_target)
-	{
-		if (!pdbg_target_get_attribute(clock_target, "ATTR_POSITION", 2,
-					       1, &attr_clk_pos)) {
-			FAPI_ERR("Attribute ATTR_POSITION read failed"
-				 " for clock '%s' \n",
-				 pdbg_target_path(clock_target));
-			return;
-		}
-		if (attr_clk_pos == clk_pos)
-			break;
-	}
-
-	// pdbg_for_each_class_target() return null target incase failed to
-	// match target
-	if (clock_target == nullptr) {
-		FAPI_ERR(
-		    "oscrefclk target not found for clock position(%d) :"
-		    "Warning: Skipping custom clock error callout handling",
-		    clk_pos);
-		return;
-	}
-
-	// These definitions copied from header file attribute_info.H
-	typedef uint8_t ATTR_PHYS_BIN_PATH_Type[21];
-	const std::string ATTR_PHYS_BIN_PATH_Spec = "1";
-	const uint32_t ATTR_PHYS_BIN_PATH_ElementCount = 21;
-
-	ATTR_PHYS_BIN_PATH_Type physBinPath;
-	if (!pdbg_target_get_attribute(clock_target, "ATTR_PHYS_BIN_PATH",
-				       std::stoi(ATTR_PHYS_BIN_PATH_Spec),
-				       ATTR_PHYS_BIN_PATH_ElementCount,
-				       physBinPath)) {
-		FAPI_ERR("Failed to read ATTR_PHYS_BIN_PATH for target %s\n",
-			 pdbg_target_path(clock_target));
-		return;
-	}
-
 	// Remove existing cdg records from ffdc structure
 	ffdc.hwp_errorinfo.cdg_targets.clear();
 
-	// Rebuild cdg records based redudant mode enabled policy.
-	CDG_Target cdg_target;
-	std::copy(physBinPath, physBinPath + ATTR_PHYS_BIN_PATH_ElementCount,
-		  std::back_inserter(cdg_target.target_entity_path));
-	cdg_target.deconfigure = true;
-	cdg_target.guard = false;
-	cdg_target.callout = false;
-	ffdc.hwp_errorinfo.cdg_targets.push_back(cdg_target);
-
-	// set FFDC type
-	ffdc.ffdc_type = FFDC_TYPE_SPARE_CLOCK_INFO;
+	auto clk_pos = hwCallout.clkPos;
+    PredicatePostfixExpr pred;
+    pred.push(std::make_shared<PredicateAttrVal<ATTR_TYPE>>(TYPE_OSCREFCLK))
+        .push(std::make_shared<PredicateAttrVal<ATTR_POSITION>>(clk_pos))
+        .And();
+    auto tgts = ts.getAssociated(top, AssociationType::childByPhysical,
+                             RecursionLevel::all, &pred);
+    if (tgts.empty)
+    {
+        FAPI_ERR(
+            "oscrefclk target not found for clock position(%d) :"
+            "Warning: Skipping custom clock error callout handling",
+            clk_pos);    
+    }
+        
+    for (auto&& tgt : tgts )
+    {
+        EntityPath entityPath;
+        tgt->getAttr<ATTR_PHYS_PATH>(entityPath);
+	    CDG_Target cdg_target;
+	    cdg_target.target_entity_path
+        cdg_target.target_entity_path.assign(
+            reinterpret_cast<const uint8_t*>(&entityPath),
+            reinterpret_cast<const uint8_t*>(&entityPath) + sizeof(entityPath));	    
+	    cdg_target.deconfigure = true;
+	    cdg_target.guard = false;
+	    cdg_target.callout = false;
+	    ffdc.hwp_errorinfo.cdg_targets.push_back(cdg_target);
+	    // set FFDC type
+	    ffdc.ffdc_type = FFDC_TYPE_SPARE_CLOCK_INFO;
+	    
+	    break;
+    }    
 }
 
 /**

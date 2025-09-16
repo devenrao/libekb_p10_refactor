@@ -53,15 +53,15 @@ extern "C" {
 //#include <iostream>
 
 /* Haven't figured out how to deal with attributes yet */
-
+#if 0
 namespace fapi2
 {
-ReturnCode plat_access_attr_GETMACRO(const char* attr, struct pdbg_target* tgt,
+ReturnCode plat_access_attr_GETMACRO(const char* attr, TARGETING::ConstTargetPtr tgt,
 				     uint32_t size, uint32_t count, void* val);
-ReturnCode plat_access_attr_SETMACRO(const char* attr, struct pdbg_target* tgt,
+ReturnCode plat_access_attr_SETMACRO(const char* attr, TARGETING::ConstTargetPtr tgt,
 				     uint32_t size, uint32_t count, void* val);
 } // namespace fapi2
-
+#endif
 #include "platform_attrs.h"
 
 #define PLAT_GET_CHIP_EC_FEATURE_OVERRIDE(ID, TARGET, VAL) FAPI2_RC_SUCCESS

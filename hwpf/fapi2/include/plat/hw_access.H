@@ -33,13 +33,9 @@
 
 #include <fapi2_hw_access.H>
 #include <plat_hw_access.H>
-
-extern "C" {
-#include <libpdbg.h>
-}
-
-#define pdbg_parent(tgt, cls) pdbg_target_parent_virtual(cls, tgt)
-
+#include <targeting/target.H>
+#include <targetsvc/target_service.H>
+#include <hwaccess/hw_access_intf.H>
 namespace fapi2
 {
 //--------------------------------------------------------------------------
@@ -106,74 +102,12 @@ template <TargetType K, MulticastType M, typename V>
 inline ReturnCode getScom(const Target<K, M, V>& i_target,
 			  const uint64_t i_address, buffer<uint64_t>& o_data)
 {
-	struct pdbg_target* target = i_target;
+	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
 	uint64_t data;
-	int rc;
-
-	rc = pib_read(target, i_address, &data);
+	int rc = HWAccess::getInstance()->putScom(target, i_address, &o_data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
-	o_data = data;
-	return FAPI2_RC_SUCCESS;
-}
-
-/* Returns the pib target for the given proc chip or NULL in case of
- * error. */
-inline struct pdbg_target* get_pib_target(struct pdbg_target* proc)
-{
-	struct pdbg_target* pib = NULL;
-
-	/* We assume each processor chip contains one and only one pib */
-	pdbg_for_each_target("pib", proc, pib)
-	{
-		break;
-	}
-
-	if (!pib) {
-		FAPI_ERR("No pib target associated with processor %s\n",
-			 pdbg_target_path(proc));
-		return NULL;
-	}
-
-	return pib;
-}
-
-template <MulticastType M, typename V>
-inline ReturnCode getScom(const Target<TARGET_TYPE_PROC_CHIP, M, V>& i_target,
-			  const uint64_t i_address, buffer<uint64_t>& o_data)
-{
-	struct pdbg_target *pib, *proc = i_target;
-	uint64_t data;
-	int rc;
-
-	if (!(pib = get_pib_target(proc)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = pib_read(pib, i_address, &data);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	o_data = data;
-	return FAPI2_RC_SUCCESS;
-}
-
-template <MulticastType M, typename V>
-inline ReturnCode getScom(const Target<TARGET_TYPE_OCMB_CHIP, M, V>& i_target,
-			  const uint64_t i_address, buffer<uint64_t>& o_data)
-{
-	struct pdbg_target *pib, *ocmb = i_target;
-	uint64_t data;
-	int rc;
-
-	if (!(pib = get_ody_pib_target(ocmb)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = pib_ody_read(pib, i_address, &data);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	o_data = data;
 	return FAPI2_RC_SUCCESS;
 }
 
@@ -188,46 +122,9 @@ inline ReturnCode putScom(const Target<K, M, V>& i_target,
 			  const uint64_t i_address,
 			  const buffer<uint64_t> i_data)
 {
-	struct pdbg_target* target = i_target;
-	int rc;
-
-	rc = pib_write(target, i_address, i_data);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	return FAPI2_RC_SUCCESS;
-}
-
-template <MulticastType M, typename V>
-inline ReturnCode putScom(const Target<TARGET_TYPE_PROC_CHIP, M, V>& i_target,
-			  const uint64_t i_address,
-			  const buffer<uint64_t> i_data)
-{
-	struct pdbg_target *pib, *proc = i_target;
-	int rc;
-
-	if (!(pib = get_pib_target(proc)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = pib_write(pib, i_address, i_data);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	return FAPI2_RC_SUCCESS;
-}
-
-template <MulticastType M, typename V>
-inline ReturnCode putScom(const Target<TARGET_TYPE_OCMB_CHIP, M, V>& i_target,
-				const uint64_t i_address,
-				const buffer<uint64_t> i_data)
-{
-	struct pdbg_target *pib, *ocmb = i_target;
-	int rc;
-
-	if (!(pib = get_ody_pib_target(ocmb)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = pib_ody_write(pib, i_address, i_data);
+	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
+	uint64_t data;
+	int rc = HWAccess::getInstance()->putScom(target, i_address, i_data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
@@ -247,56 +144,8 @@ inline ReturnCode putScomUnderMask(const Target<K, M, V>& i_target,
 				   const buffer<uint64_t> i_data,
 				   const buffer<uint64_t> i_mask)
 {
-	struct pdbg_target* target = i_target;
-	uint64_t data;
-	int rc;
-
-	rc = pib_write_mask(target, i_address, i_data, i_mask);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	return FAPI2_RC_SUCCESS;
-}
-
-template <MulticastType M, typename V>
-inline ReturnCode
-    putScomUnderMask(const Target<TARGET_TYPE_PROC_CHIP, M, V>& i_target,
-		     const uint64_t i_address, const buffer<uint64_t> i_data,
-		     const buffer<uint64_t> i_mask)
-{
-	struct pdbg_target *pib, *proc = i_target;
-	uint64_t data;
-	int rc;
-
-	if (!(pib = get_pib_target(proc)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = pib_write_mask(pib, i_address, i_data, i_mask);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	return FAPI2_RC_SUCCESS;
-}
-
-/* Returns the pib target for the given proc chip or NULL in case of
- * error. */
-inline struct pdbg_target* get_fsi_target(struct pdbg_target* proc)
-{
-	struct pdbg_target* fsi = NULL;
-
-	/* We assume each processor chip contains one and only one pib */
-	pdbg_for_each_target("fsi", proc, fsi)
-	{
-		break;
-	}
-
-	if (!fsi) {
-		FAPI_ERR("No fsi target associated with processor %s\n",
-			 pdbg_target_path(proc));
-		return NULL;
-	}
-
-	return fsi;
+	static_assert(K == 0, "implement putScomUnderMask");
+	return ~FAPI2_RC_SUCCESS;
 }
 
 ///
@@ -308,89 +157,18 @@ inline struct pdbg_target* get_fsi_target(struct pdbg_target* proc)
 /// @param[out] o_data     32-bit buffer that holds data read from HW target.
 /// @return fapi::ReturnCode. FAPI2_RC_SUCCESS if success, else error code.
 ///
-template <MulticastType M, typename V>
+template <TargetType K, MulticastType M, typename V>
 inline ReturnCode
-    getCfamRegister(const Target<TARGET_TYPE_PROC_CHIP, M, V>& i_target,
+    getCfamRegister(const Target<K, M, V>& i_target,
 		    const uint32_t i_address, buffer<uint32_t>& o_data)
 {
-	struct pdbg_target *fsi, *proc = i_target;
+	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
 	uint32_t data;
-	int rc;
-
-	if (!(fsi = get_fsi_target(proc)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = fsi_read(fsi, i_address, &data);
+	int rc = hwaccess::HwAccessIntf::getCfamRegister(target, i_address, data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
 	o_data = data;
-	return FAPI2_RC_SUCCESS;
-}
-
-template <MulticastType M, typename V>
-inline ReturnCode
-    getCfamRegister(const Target<TARGET_TYPE_MEMBUF_CHIP, M, V>& i_target,
-		    const uint32_t i_address, buffer<uint32_t>& o_data)
-{
-	FAPI_ERR("CFAM access for memory buffer chips not implemented on this "
-		 "platform\n");
-
-	return FAPI2_RC_FALSE;
-}
-
-///
-/// @brief Platform-level implementation called by getCfamRegister()
-/// Hardware procedures writers will not call this function.
-/// @tparam K template parameter, passed in target.
-/// @param[in]  i_target   HW target to operate on.
-/// @param[in]  i_address  CFAM address to read from.
-/// @param[out] o_data     32-bit buffer that holds data read from HW target.
-/// @return fapi::ReturnCode. FAPI2_RC_SUCCESS if success, else error code.
-///
-template <MulticastType M, typename V>
-inline ReturnCode
-    getCfamRegister(const Target<TARGET_TYPE_OCMB_CHIP, M, V>& i_target,
-		    const uint32_t i_address, buffer<uint32_t>& o_data)
-{
-	struct pdbg_target *fsi, *ocmb = i_target;
-	uint32_t data;
-	int rc;
-
-	if (!(fsi = get_ody_fsi_target(ocmb)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = fsi_ody_read(fsi, i_address, &data);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	o_data = data;
-	return FAPI2_RC_SUCCESS;
-}
-///
-/// @brief Platform-level implementation of putCfamRegister()
-/// Hardware procedures writers will not call this function.
-/// @tparam K template parameter, passed in target.
-/// @param[in]  i_target   HW target to operate on.
-/// @param[in]  i_address  CFAM address to write to.
-/// @param[out] i_data     32-bit buffer that holds data to write into address.
-/// @return fapi::ReturnCode. FAPI2_RC_SUCCESS if success, else error code.
-///
-template <MulticastType M, typename V>
-inline ReturnCode
-    putCfamRegister(const Target<TARGET_TYPE_PROC_CHIP, M, V>& i_target,
-		    const uint32_t i_address, const buffer<uint32_t> i_data)
-{
-	struct pdbg_target *fsi, *proc = i_target;
-	int rc;
-
-	if (!(fsi = get_fsi_target(proc)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = fsi_write(fsi, i_address, i_data);
-	if (rc)
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
 	return FAPI2_RC_SUCCESS;
 }
 
@@ -403,23 +181,19 @@ inline ReturnCode
 /// @param[out] i_data     32-bit buffer that holds data to write into address.
 /// @return fapi::ReturnCode. FAPI2_RC_SUCCESS if success, else error code.
 ///
-template <MulticastType M, typename V>
+template <TargetType K, MulticastType M, typename V>
 inline ReturnCode
-    putCfamRegister(const Target<TARGET_TYPE_OCMB_CHIP, M, V>& i_target,
+    putCfamRegister(const Target<K, M, V>& i_target,
 		    const uint32_t i_address, const buffer<uint32_t> i_data)
 {
-	struct pdbg_target *fsi, *ocmb = i_target;
-	int rc;
-
-	if (!(fsi = get_ody_fsi_target(ocmb)))
-		return FAPI2_RC_PLAT_ERR_SEE_DATA;
-
-	rc = fsi_ody_write(fsi, i_address, i_data);
+	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
+	int rc = HWAccess::getInstance()->putCfamRegister(target, i_address, i_data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
 	return FAPI2_RC_SUCCESS;
 }
+
 /// @brief Platform-level implementation  of putRing()
 /// Hardware procedures writers will not call this function.
 /// @tparam K template parameter, passed in target.

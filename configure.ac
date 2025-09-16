@@ -6,7 +6,6 @@ AC_SUBST(SONAME_CURRENT, 1)
 AC_SUBST(SONAME_REVISION, 0)
 AC_SUBST(SONAME_AGE, 0)
 
-
 case "$host" in
 	arm*-*-*) ARCH="arm" ;;
 	powerpc64-*-*) ARCH="ppc64" ;;
@@ -47,15 +46,21 @@ AM_PROG_AR
 LT_INIT
 AC_CHECK_TOOL([OBJCOPY],[objcopy])
 
-AC_CHECK_LIB([pdbg], [pdbg_targets_init], [LIBS="-lpdbg -lfdt $LIBS"], [], [-lfdt])
-if test x"$ac_cv_lib_pdbg_pdbg_targets_init" != xyes ; then
-	AC_MSG_ERROR([Unable to find pdbg library])
-fi
+# --- Dependency checks (replacing pdbg) ---
+PKG_CHECK_MODULES([TARGETING],   [libtargeting])
+PKG_CHECK_MODULES([HWACCESS],    [libhwaccess])
+PKG_CHECK_MODULES([TARGETSVC],   [libtargetsvc])
+PKG_CHECK_MODULES([TRANSPORT],   [libtransport])
+PKG_CHECK_MODULES([FDT],         [libfdt-custom])
+LIBS="$TARGETING_LIBS $HWACCESS_LIBS $TARGETSVC_LIBS $TRANSPORT_LIBS $FDT_LIBS $LIBS"
 
 m4_syscmd([make -f Makefile.generate > Makefile.proc.am])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_HEADERS([config.h])
 AC_LANG(C++)
+AC_LANG_PUSH([C++])
+AC_MSG_CHECKING([whether $CXX supports C++20])
+save_CXXFLAGS="$CXXFLAGS"
 
 AC_OUTPUT

@@ -1,6 +1,5 @@
 extern "C" {
 #include <assert.h>
-#include <libpdbg.h>
 #include <stdarg.h>
 #include <stdio.h>
 }
@@ -34,11 +33,6 @@ int libekb_init(void)
 {
 	if (!__libekb_log_fn)
 		libekb_set_logfunc(libekb_log_default, NULL);
-
-	if (!pdbg_target_root()) {
-		libekb_log(LIBEKB_LOG_ERR, "libpdbg not initialized\n");
-		return -1;
-	}
 
 	return 0;
 }

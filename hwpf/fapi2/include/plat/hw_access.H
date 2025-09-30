@@ -34,7 +34,7 @@
 #include <fapi2_hw_access.H>
 #include <plat_hw_access.H>
 #include <targeting/target.H>
-#include <targetsvc/target_service.H>
+#include <targeting/target_service.H>
 #include <hwaccess/hw_access_intf.H>
 namespace fapi2
 {
@@ -103,8 +103,7 @@ inline ReturnCode getScom(const Target<K, M, V>& i_target,
 			  const uint64_t i_address, buffer<uint64_t>& o_data)
 {
 	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
-	uint64_t data;
-	int rc = HWAccess::getInstance()->putScom(target, i_address, &o_data);
+	int rc = HwAccessIntf::getScom(target, i_address, &o_data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
@@ -123,8 +122,7 @@ inline ReturnCode putScom(const Target<K, M, V>& i_target,
 			  const buffer<uint64_t> i_data)
 {
 	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
-	uint64_t data;
-	int rc = HWAccess::getInstance()->putScom(target, i_address, i_data);
+	int rc = HwAccessIntf::putScom(target, i_address, i_data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
@@ -164,7 +162,7 @@ inline ReturnCode
 {
 	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
 	uint32_t data;
-	int rc = hwaccess::HwAccessIntf::getCfamRegister(target, i_address, data);
+	int rc = HwAccessIntf::getCfamRegister(target, i_address, data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 
@@ -187,7 +185,7 @@ inline ReturnCode
 		    const uint32_t i_address, const buffer<uint32_t> i_data)
 {
 	TARGETING::ConstTargetPtr target = static_cast<TARGETING::ConstTargetPtr>(i_target);
-	int rc = HWAccess::getInstance()->putCfamRegister(target, i_address, i_data);
+	int rc = HwAccessIntf::putCfamRegister(target, i_address, i_data);
 	if (rc)
 		return FAPI2_RC_PLAT_ERR_SEE_DATA;
 

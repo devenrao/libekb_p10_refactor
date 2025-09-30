@@ -1,6 +1,6 @@
 #include <fapi2_target.H>
 #include <plat_target.H>
-#include <targetsvc/target_service.H>
+#include <targeting/target_service.H>
 
 namespace fapi2
 {

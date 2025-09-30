@@ -31,10 +31,13 @@
 #include <plat_trace.H>
 #include <stdio.h>
 #include <string.h>
-#include <targeting/predicates/predicatectm.H>
-#include <targeting/predicates/predicateisfunctional.H>
 #include <targeting/target.H>
-#include <targeting/targetservice.H>
+#include <targeting/target_service.H>
+#include <targeting/common/entitypath.H>
+#include <targeting/xmltohb/attributeenums.H>
+#include <targeting/xmltohb/attributetraits.H>
+#include <targeting/predicates/predicatepostfixexpr.H>
+#include <targeting/predicates/predicateattrval.H>
 
 #include <algorithm>
 #include <array>
@@ -142,29 +145,18 @@ bool Target<K, M, V>::operator<(const Target &i_right) const
 {
 	return i_right.iv_handle < iv_handle;
 }
-
 ///
 /// @brief Get this target's immediate parent
-/// @tparam T_SELF The type of target on which this is called
-/// @tparam K_PARENT The desired type of the parent target
+/// @tparam T The type of target on which this is called
+/// @tparam M The desired type of the parent target
 /// @tparam V the type of the target's Value
 /// @return Target<T> a target representing the parent:1
-
 ///
-template <TargetType T_SELF, MulticastType M, typename V>
-template <TargetType K_PARENT>
-inline Target<K_PARENT, M, V> Target<T_SELF, M, V>::getParent(void) const
+template <TargetType K, MulticastType M, typename V>
+template <TargetType T>
+inline Target<T, M, V> Target<K, M, V>::getParent(void) const
 {
-	// It's forbidden to strip multicast from a target below PROC_CHIP
-	// level: Since a multicast might end up expanding to more than one
-	// unicast target, users are required to use getChildren if they want to
-	// map back to unicast.
-	static_assert(!(((K ^ T) & TARGET_TYPE_MULTICAST) &&
-			((T & TARGET_TYPE_CHIPLETS) != TARGET_TYPE_NONE)),
-		      "Parent target for a multicast target must also be "
-		      "multicast or PROC_CHIP");
-
-	// For testing
+    //TODO: will be fixed in next commit
 	return Target<T, M, V>(iv_handle);
 }
 
@@ -182,6 +174,7 @@ template <TargetType T>
 inline std::vector<Target<T, M, V>>
     Target<K, M, V>::getChildren(const TargetState i_state) const
 {
+    //TODO: will be fixed in next commit
 	std::vector<Target<T, M, V>> targets;
 	return targets;
 }
@@ -189,13 +182,14 @@ inline std::vector<Target<T, M, V>>
 // @param[in] i_state The desired TargetState of the children
 // @return std::vector<Target<T> > a vector of present/functional children
 
-template <TargetType T_SELF, MulticastType M, typename V>
+template <TargetType K, MulticastType M, typename V>
 template <TargetType T>
 inline std::vector<Target<T, M, V>>
-    Target<T_SELF, M, V>::getChildren(const TargetFilter i_filter,
+    Target<K, M, V>::getChildren(const TargetFilter i_filter,
 				      const TargetState i_state) const
 {
-	std::vector<Target<T, M, V>> children;
+    //TODO: will be fixed in next commit
+	std::vector<Target<K, M, V>> targets;
 	return targets;
 }
 
@@ -204,18 +198,7 @@ template <TargetType T, MulticastType O>
 inline Target<T | TARGET_TYPE_MULTICAST, O, V>
     Target<K, M, V>::getMulticast(const MulticastGroup i_group) const
 {
-	// C++ does not allow partial specialization of class member functions
-	// (please prove me wrong!), so we need to use this static assertion
-	// instead. On the upside, the error message is much clearer ;)
-	static_assert((K == TARGET_TYPE_PROC_CHIP),
-		      "Parent target must be the proc chip");
-	static_assert(
-	    (T & TARGET_TYPE_MULTICASTABLE) != 0,
-	    "Requested target type must be part of TARGET_TYPE_MULTICASTABLE");
-	static_assert(bitCount<T>::count == 1,
-		      "Requested target type must be a single type, "
-		      "TARGET_TYPE_MULTICAST will be added automatically");
-
+    //TODO: will be fixed in next commit
 	return Target<T | TARGET_TYPE_MULTICAST, O, V>();
 }
 
@@ -225,12 +208,8 @@ inline Target<TARGET_TYPE_CORE | TARGET_TYPE_MULTICAST, O, V>
     Target<K, M, V>::getMulticast(const MulticastGroup i_group,
 				  const MulticastCoreSelect i_cores) const
 {
-	// C++ does not allow partial specialization of class member functions
-	// (please prove me wrong!), so we need to use this static assertion
-	// instead. On the upside, the error message is much clearer ;)
-	static_assert((K == TARGET_TYPE_PROC_CHIP),
-		      "Parent target must be the proc chip");
-	return Target<TARGET_TYPE_CORE | TARGET_TYPE_MULTICAST, O, V>();
+    //TODO: will be fixed in next commit
+	return Target<K, M, V>(iv_handle);
 }
 
 ///
@@ -264,7 +243,7 @@ inline fapi2::ReturnCodes
 template <TargetType K, MulticastType M, typename V>
 inline bool Target<K, M, V>::isFunctional(void) const
 {
-	this->get()->getAttr<ATTR_HWAS_STATE>().functional;
+    return this->get()->template getAttr<TARGETING::ATTR_HWAS_STATE>().functional;
 }
 
 ///
@@ -278,8 +257,9 @@ template <TargetType K, MulticastType M, typename V>
 inline uint8_t Target<K, M, V>::getChipletNumber(void) const
 {
 	uint8_t chiplet_id = 0;
-	this->get()->getAttr<TARGETING::ATTR_CHIPLET_ID>(
-	    chiplet_id) return chiplet_id;
+	this->get()->template getAttr<TARGETING::ATTR_CHIPLET_ID>(
+	    chiplet_id);
+    return chiplet_id;
 }
 
 template <TargetType K, MulticastType M, typename V>
@@ -309,10 +289,12 @@ inline void toString(const Target<T, M, V> &i_target, char *io_buffer,
 {
 	TARGETING::ConstTargetPtr target =
 	    static_cast<TARGETING::ConstTargetPtr>(i_target->get());
-	ATTR_FAPI_NAME_type fapiName = {0};
-	if (!target->tryGetAttr<ATTR_FAPI_NAME>(fapiName)) {
+	TARGETING::ATTR_FAPI_NAME_type fapiName = {0};
+	if (!target->template tryGetAttr<TARGETING::ATTR_FAPI_NAME>(fapiName)) 
+    {
 		std::cerr << "ERROR: Cannot read FAPI_NAME attribute\n";
-		if (i_bsize > 0) {
+		if (i_bsize > 0) 
+        {
 			io_buffer[0] = '\0';
 		}
 		return;
@@ -322,13 +304,15 @@ inline void toString(const Target<T, M, V> &i_target, char *io_buffer,
 	size_t copy_len =
 	    std::min(i_bsize - 1, name.size()); // leave room for '\0'
 
-	if (i_bsize > 0) {
+	if (i_bsize > 0) 
+    {
 		std::memcpy(io_buffer, name.data(), copy_len);
 		io_buffer[copy_len] = '\0';
 	}
 
-	if (copy_len < name.size()) {
-	std::cout << "Buffer too small: need %zu bytes, got %zu for %s",
+	if (copy_len < name.size()) 
+    {
+	    printf("Buffer too small: need %zu bytes, got %zu for %s \n",
                  name.size() + 1, i_bsize, name.data());
 	}
 }
@@ -351,20 +335,6 @@ inline void toString(const Target<T, M, V> *i_target, char *io_buffer,
 	toString(*i_target, io_buffer, i_bsize);
 }
 
-/* Copied from collect_reg_ffdc.H. We can't just include
- * collect_reg_ffdc.H because that first includes target.H (this file)
- * so we have no way of accessing it's definition of this. So instead
- * we have to redefine it here. */
-const fapi2::TargetType PLAT_TARGET_TYPE_PROC_CHIPLETS =
-    fapi2::TARGET_TYPE_EX | fapi2::TARGET_TYPE_MCS | fapi2::TARGET_TYPE_XBUS |
-    fapi2::TARGET_TYPE_CORE | fapi2::TARGET_TYPE_EQ | fapi2::TARGET_TYPE_MCA |
-    fapi2::TARGET_TYPE_MCBIST | fapi2::TARGET_TYPE_MI |
-    fapi2::TARGET_TYPE_CAPP | fapi2::TARGET_TYPE_DMI | fapi2::TARGET_TYPE_OBUS |
-    fapi2::TARGET_TYPE_OBUS_BRICK | fapi2::TARGET_TYPE_SBE |
-    fapi2::TARGET_TYPE_PPE | fapi2::TARGET_TYPE_PERV | fapi2::TARGET_TYPE_PEC |
-    fapi2::TARGET_TYPE_PHB | fapi2::TARGET_TYPE_MC | fapi2::TARGET_TYPE_OMI |
-    fapi2::TARGET_TYPE_MEM_PORT;
-
 ///
 /// @brief Get an enumerated target of a specific type
 /// @tparam T The type of the target
@@ -372,13 +342,40 @@ const fapi2::TargetType PLAT_TARGET_TYPE_PROC_CHIPLETS =
 /// the desired target
 /// @return Target<T> the target requested
 ///
-template <TargetType T, MulticastType M, typename V>
-inline Target<T, M, V> getTarget(uint64_t ordinal)
+template<TargetType T, MulticastType M, typename V>
+inline Target<T, M, V> getTarget(uint64_t Ordinal)
 {
-	// To keep compiler happy.
-	return Target<T, M, V>(target);
-}
+    using namespace TARGETING;
+    PredicatePostfixExpr pred;
+    pred.push(std::make_shared<PredicateAttrVal<ATTR_TYPE>>(T))
+        .push(std::make_shared<PredicateAttrVal<ATTR_FAPI_POS>>(ordinal))
+        .And();
 
+    auto top = TargetService::instance().getTopLevelTarget();
+    auto tgts = ts.getAssociated(
+        top,
+        AssociationType::childByPhysical,
+        RecursionLevel::all,
+        &pred
+    );
+
+    if (tgts.size() != 1)
+    {
+        if (tgts.empty())
+        {
+            FAPI_ERR("getTarget(): No matching Target Found, Ordinal: 0x%.8llX",
+                     static_cast<unsigned long long>(ordinal));
+        }
+        else
+        {
+            FAPI_ERR("getTarget(): Found multiple targets for Ordinal: 0x%.8llX",
+                     static_cast<unsigned long long>(ordinal));
+        }
+        assert(false); // or throw exception if you want recovery
+    }
+
+    return Target<T, M, V>(tgts.front());
+}
 ///
 /// @brief Return the entity of given target
 /// @tparam T The type of the target
@@ -392,8 +389,9 @@ template <TargetType T, MulticastType M, typename V>
 inline void getTgtEntityPath(const Target<T, M, V> &i_target,
 			     std::vector<uint8_t> &o_buffer)
 {
-	AttributeTraits<ATTR_PHYS_PATH>::Type entityPath;
-	if (!i_target->tryGetAttr<ATTR_PHYS_PATH>(entityPath)) {
+	TARGETING::AttributeTraits<TARGETING::ATTR_PHYS_PATH>::Type entityPath;
+    if (!i_target->template tryGetAttr<TARGETING::ATTR_PHYS_PATH>(entityPath)) 
+    {
 		std::cerr << "Could not read ATTR_PHYS_PATH attribute \n";
 		return;
 	}
@@ -401,7 +399,7 @@ inline void getTgtEntityPath(const Target<T, M, V> &i_target,
 	// Use ranges: just copy the raw bytes directly
 	std::span<const uint8_t> bytes(entityPath.data(),
 				       entityPath.getSize() *
-					   sizeof(EntityPath::PathElement));
+					   sizeof(TARGETING::EntityPath::PathElement));
 
 	o_buffer.assign(bytes.begin(), bytes.end());
 }
@@ -410,7 +408,7 @@ inline void getTgtEntityPath(const Target<T, M, V> &i_target,
 inline constexpr TARGETING::TYPE
     convertFapi2TypeToTargeting(fapi2::TargetType t)
 {
-	for (auto entry : conversion::fapi2ToTargetingTypes) {
+	for (auto entry : fapi2ToTargetingTypes) {
 		if (entry.fapi2Type == t)
 			return entry.targetingType;
 	}
@@ -420,10 +418,11 @@ inline constexpr TARGETING::TYPE
 inline constexpr fapi2::TargetType
     convertTargetingTypeToFapi2(TARGETING::TYPE t)
 {
-	for (auto entry : conversion::fapi2ToTargetingTypes) {
+	for (auto entry : fapi2ToTargetingTypes) {
 		if (entry.targetingType == t)
 			return entry.fapi2Type;
 	}
 	return fapi2::TARGET_TYPE_NONE;
 }
 } // namespace fapi2
+#endif

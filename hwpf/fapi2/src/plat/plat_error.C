@@ -1,7 +1,7 @@
 #include "plat_error.H"
 #include "plat_utils.H"
 #include <targeting/target.H>
-#include <targetsvc/target_service.H>
+#include <targeting/target_service.H>
 
 namespace fapi2
 {

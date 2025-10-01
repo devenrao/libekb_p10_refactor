@@ -5,7 +5,8 @@
 
 #include <fapi2_hw_access.H>
 #include <plat_hw_access.H>
-
+#include <targeting/target.H>
+#include <hwaccess/hw_access_intf.H>
 namespace fapi2
 {
 //------------------------------------------------------------------------------
@@ -24,8 +25,16 @@ template <TargetType K, MulticastType M, typename V>
 inline ReturnCode getScom(const Target<K, M, V>& i_target,
 			  const uint64_t i_address, buffer<uint64_t>& o_data)
 {
-    //TODO: switch to targeting
-	return FAPI2_RC_SUCCESS;
+    using namespace hwaccess;
+    auto target =  static_cast<TARGETING::ConstTargetPtr>(i_target);
+    uint64_t regValue = 0;
+    int rc = HwAccessIntf::getScomRegister(target, i_address, regValue);
+    if (rc)
+    {
+        return FAPI2_RC_PLAT_ERR_SEE_DATA;
+    }
+    o_data = regValue;
+    return FAPI2_RC_SUCCESS;
 }
 
 
@@ -40,8 +49,14 @@ inline ReturnCode putScom(const Target<K, M, V>& i_target,
 			  const uint64_t i_address,
 			  const buffer<uint64_t> i_data)
 {
-    //TODO: switch to targeting
-	return FAPI2_RC_SUCCESS;
+    using namespace hwaccess;
+    auto target = static_cast<TARGETING::ConstTargetPtr>(i_target);
+    int rc = HwAccessIntf::putScomRegister(target, i_address, i_data);
+    if (rc)
+    {
+        return FAPI2_RC_PLAT_ERR_SEE_DATA;
+    }
+    return FAPI2_RC_SUCCESS;
 }
 
 /// @brief Platform-level implementation of putScomUnderMask()
@@ -57,25 +72,40 @@ inline ReturnCode putScomUnderMask(const Target<K, M, V>& i_target,
 				   const buffer<uint64_t> i_data,
 				   const buffer<uint64_t> i_mask)
 {
-    //TODO: switch to targeting
-	return FAPI2_RC_SUCCESS;
+    static_assert([]{return false;}(),
+        "putScomUnderMask is not implemented");
+    return FAPI2_RC_SUCCESS;
 }
 
 template <TargetType K, MulticastType M, typename V>
-inline ReturnCode
-    getCfamRegister(const Target<K, M, V>& i_target,
+inline ReturnCode getCfamRegister(const Target<K, M, V>& i_target,
 		    const uint32_t i_address, buffer<uint32_t>& o_data)
 {
-	return FAPI2_RC_SUCCESS;
+    using namespace hwaccess;
+    auto target = static_cast<TARGETING::ConstTargetPtr>(i_target);
+    uint32_t data;
+    int rc = HwAccessIntf::getCfamRegister(target, i_address, data);
+    if (rc)
+    {
+        return FAPI2_RC_PLAT_ERR_SEE_DATA;
+    }
+    o_data = data;
+    return FAPI2_RC_SUCCESS;
 }
 
 
 
 template <TargetType K, MulticastType M, typename V>
-inline ReturnCode
-    putCfamRegister(const Target<K, M, V>& i_target,
+inline ReturnCode putCfamRegister(const Target<K, M, V>& i_target,
 		    const uint32_t i_address, const buffer<uint32_t> i_data)
 {
-	return FAPI2_RC_SUCCESS;
+    using namespace hwaccess;
+    auto target = static_cast<TARGETING::ConstTargetPtr>(i_target);
+    int rc = HwAccessIntf::putCfamRegister(target, i_address, i_data);
+    if (rc)
+    {
+        return FAPI2_RC_PLAT_ERR_SEE_DATA;
+    }
+    return FAPI2_RC_SUCCESS;
 }
 }; // namespace fapi2

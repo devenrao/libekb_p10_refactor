@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <cstdint>
+#include <targeting/target.H>
 //
 // Define what a platform handle looks like. For Hostboot,
 // for example, this might be a void*. For the SBE, this
@@ -13,5 +13,5 @@
 //
 namespace fapi2
 {
-typedef uint64_t plat_target_handle_t;
+typedef TARGETING::ConstTargetPtr plat_target_handle_t;
 }

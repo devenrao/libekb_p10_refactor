@@ -18,6 +18,11 @@
 #include <cstring>
 #include <vector>
 
+#include <targeting/target.H>
+#include <targeting/common/entitypath.H>
+#include <targeting/xmltohb/attributeenums.H>
+#include <targeting/xmltohb/attributetraits.H>
+
 static libekb_log_func_t __libekb_log_fn;
 static void* __libekb_log_priv;
 static int __libekb_log_level = LIBEKB_LOG_ERR;
@@ -67,11 +72,26 @@ void libekb_log(int loglevel, const char* fmt, ...)
 	va_end(ap);
 }
 
-static void getTgtEntityPath(const fapi2::Target<TARGET_TYPE_ALL> &i_target,
+static void getTgtEntityPath(const TARGETING::ConstTargetPtr &i_target,
 			     std::vector<uint8_t> &o_buffer)
 {
+    TARGETING::AttributeTraits<TARGETING::ATTR_PHYS_PATH>::Type entityPath;
+    if (!i_target->template tryGetAttr<TARGETING::ATTR_PHYS_PATH>(entityPath))
+    {
+        std::cerr << "Could not read ATTR_PHYS_PATH attribute\n";
+        return;
+    }
+
+    // Calculate total size in bytes: header + elements actually present
+    size_t sizeBytes = sizeof(uint8_t) +    // header
+                       entityPath.getSize() *
+                           sizeof(TARGETING::EntityPath::PathElement);
+
+    // Copy the raw bytes into o_buffer
+    auto raw = reinterpret_cast<const uint8_t*>(&entityPath);
+    o_buffer.assign(raw, raw + sizeBytes);
 }
-			     
+
 /*
  * @brief Used to callout hardware error details.
  *

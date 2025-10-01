@@ -1,9 +1,6 @@
-extern "C" {
-#include <assert.h>
-#include <libpdbg.h>
-#include <stdarg.h>
-#include <stdio.h>
-}
+#include <cassert>
+#include <cstdarg>
+#include <cstdio>
 
 #include "libekb.H"
 #include "plat_error.H"
@@ -34,11 +31,6 @@ int libekb_init(void)
 {
 	if (!__libekb_log_fn)
 		libekb_set_logfunc(libekb_log_default, NULL);
-
-	if (!pdbg_target_root()) {
-		libekb_log(LIBEKB_LOG_ERR, "libpdbg not initialized\n");
-		return -1;
-	}
 
 	return 0;
 }
@@ -75,6 +67,11 @@ void libekb_log(int loglevel, const char* fmt, ...)
 	va_end(ap);
 }
 
+static void getTgtEntityPath(const fapi2::Target<TARGET_TYPE_ALL> &i_target,
+			     std::vector<uint8_t> &o_buffer)
+{
+}
+			     
 /*
  * @brief Used to callout hardware error details.
  *
@@ -119,7 +116,7 @@ static void get_HWPErrorInfo(const fapi2::ReturnCode& rc,
 		hwcallout_data.callout_priority =
 		    fapi2::plat_CalloutPriority_tostring(
 			hwcallout->iv_calloutPriority);
-		fapi2::getTgtEntityPath(hwcallout->iv_refTarget,
+		getTgtEntityPath(hwcallout->iv_refTarget,
 					hwcallout_data.target_entity_path);
 		hwcallout_data.clkPos = hwcallout->iv_clkPos;
 
@@ -144,7 +141,7 @@ static void get_HWPErrorInfo(const fapi2::ReturnCode& rc,
 	// which are present in error xml for particular error
 	for (auto cdg : errorInfo->iv_CDGs) {
 		CDG_Target cdg_tgt_data;
-		fapi2::getTgtEntityPath(cdg->iv_target,
+		getTgtEntityPath(cdg->iv_target,
 					cdg_tgt_data.target_entity_path);
 		cdg_tgt_data.callout = cdg->iv_callout;
 		cdg_tgt_data.callout_priority =

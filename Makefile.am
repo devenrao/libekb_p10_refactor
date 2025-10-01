@@ -43,10 +43,6 @@ $(ATTRIB_HEADER): $(ATTRIB_XML)
 	@$(MKDIR_P) $(ATTRIB_DIR)
 	$(EKB)/hwpf/fapi2/tools/parseAttributeInfo.pl --output-dir=$(ATTRIB_DIR) $(ATTRIB_XML)
 
-$(ATTRIB_DIR)/platform_attrs.h: p10_attributes.db
-	@$(MKDIR_P) $(ATTRIB_DIR)
-	$(AM_V_GEN)$(srcdir)/scripts/attribute.py header $< $@
-
 # Error info headers cannot be generated with parallel run
 .NOTPARALLEL:
 
@@ -157,7 +153,7 @@ $(ERROR_PARSER_HEADER): $(ERROR_PARSER_XML)
 
 HWPF_HEADER = \
 	$(srcdir)/hwpf/fapi2/include/hwp_executor.H \
-	$(srcdir)/hwpf/fapi2/include/plat_attribute_service.H \
+	$(srcdir)/hwpf/fapi2/include/plat/plat_attribute_service.H \
 	$(srcdir)/hwpf/fapi2/include/plat/hw_access.H \
 	$(srcdir)/hwpf/fapi2/include/plat/i2c_access.H \
 	$(srcdir)/hwpf/fapi2/include/plat/mmio_access.H \
@@ -183,14 +179,12 @@ p10_attributes.db: $(ATTRIB_XML) $(srcdir)/scripts/attribute.py
 
 BUILT_SOURCES = \
 	$(ATTRIB_HEADER) \
-	$(ATTRIB_DIR)/platform_attrs.h \
 	$(ERROR_INFO_HEADER) \
 	$(ERROR_INFO_DIR)/collect_reg_ffdc_regs.C \
 	$(ERROR_PARSER_HEADER)
 
 CLEANFILES = \
 	$(ATTRIB_HEADER) \
-	$(ATTRIB_DIR)/platform_attrs.h \
 	$(ERROR_INFO_HEADER) \
 	$(ERROR_INFO_DIR)/collect_reg_ffdc_regs.C \
 	$(ERROR_PARSER_HEADER)
@@ -229,7 +223,6 @@ lib_LTLIBRARIES = libekb.la
 nobase_include_HEADERS = \
 	$(EKB_HEADER) \
 	$(ATTRIB_HEADER) \
-	$(ATTRIB_DIR)/platform_attrs.h \
 	$(ERROR_INFO_HEADER) \
 	$(HWPF_HEADER) \
 	hwpf/fapi2/include/hwp_pel_data.H \
@@ -248,7 +241,6 @@ libekb_la_SOURCES = $(PROCEDURES) \
 		    ekb/hwpf/fapi2/src/error_info.C \
 		    ekb/hwpf/fapi2/src/ffdc.C \
 		    $(ATTRIB_HEADER) \
-		    $(ATTRIB_DIR)/platform_attrs.h \
 		    $(ERROR_INFO_HEADER) \
 		    hwpf/fapi2/include/error_info/collect_reg_ffdc_regs.C \
 		    $(HWPF_HEADER) \
@@ -258,5 +250,4 @@ libekb_la_CXXFLAGS = $(LOCALCXXFLAGS)
 libekb_la_LDFLAGS = -version-info $(SONAME_CURRENT):$(SONAME_REVISION):$(SONAME_AGE)
 
 $(PROCEDURES): $(ATTRIB_HEADER) \
-	       $(ATTRIB_DIR)/platform_attrs.h \
 	       $(ERROR_INFO_HEADER)

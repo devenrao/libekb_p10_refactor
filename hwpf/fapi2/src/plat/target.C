@@ -9,7 +9,7 @@ namespace fapi2
 template <>
 Target<TARGET_TYPE_SYSTEM, MULTICAST_OR, plat_target_handle_t>::Target()
 {
-	iv_handle = pdbg_target_root();
+    //TODO:pdbg to targeting cleanup
 }
 
 } // namespace fapi2

@@ -1,6 +1,6 @@
 #include <fapi2_target.H>
 #include <plat_target.H>
-
+#include <targeting/target_service.H>
 namespace fapi2
 {
 
@@ -9,7 +9,7 @@ namespace fapi2
 template <>
 Target<TARGET_TYPE_SYSTEM, MULTICAST_OR, plat_target_handle_t>::Target()
 {
-    //TODO:pdbg to targeting cleanup
+    iv_handle = TARGETING::TargetService::instance().getTopLevelTarget();
 }
 
 } // namespace fapi2

@@ -13,5 +13,5 @@
 //
 namespace fapi2
 {
-typedef TARGETING::ConstTargetPtr plat_target_handle_t;
+typedef TARGETING::TargetPtr plat_target_handle_t;
 }

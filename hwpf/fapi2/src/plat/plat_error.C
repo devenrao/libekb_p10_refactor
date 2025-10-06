@@ -1,8 +1,13 @@
 #include "plat_error.H"
 #include "plat_utils.H"
 
+#include <targeting/target.H>
+#include <targeting/target_service.H>
+
 namespace fapi2
 {
+using namespace TARGETING;
+
 /**
  *  @brief Function to check clock redundant mode is enabled in the system
  *
@@ -15,7 +20,35 @@ namespace fapi2
  */
 bool clock_redundancy_is_enabled()
 {
-    //TODO:pdbg to targeting cleanup
+	auto constexpr NUM_CLOCK_FOR_REDUNDANT_MODE = 2;
+	uint16_t clock_count = 0;
+
+	PredicateAttrVal<ATTR_TYPE> pred(TYPE_OSCREFCLK);
+	auto &ts = TargetService::instance();
+	auto top = ts.getTopLevelTarget();
+	for (auto &&tgt :
+	     ts.getAssociated(top, AssociationType::childByPhysical,
+			      RecursionLevel::all, &pred)) {
+		TARGETING::HwasState hwasState{};
+		if (tgt->tryGetAttr<TARGETING::ATTR_HWAS_STATE>(hwasState)) {
+			if (hwasState.functional) {
+				clock_count += 1;
+			}
+		}
+	}
+	if (clock_count != 1 && clock_count != 2) {
+		FAPI_ERR("Invalid number (%d) of clock target found",
+			 clock_count);
+		return false;
+	}
+
+	if (clock_count == NUM_CLOCK_FOR_REDUNDANT_MODE) {
+		FAPI_INF("Clock redundant mode(%d) enabled", clock_count);
+		return true;
+	}
+
+	FAPI_INF("Clock redundant mode(%d) disabled", clock_count);
+	return false;
 }
 
 /**
@@ -37,7 +70,46 @@ bool clock_redundancy_is_enabled()
  */
 void clock_callout_info(FFDC &ffdc, HWCallout &hwCallout)
 {
-    //TODO:pdbg to targeting cleanup
+	// Remove existing cdg records from ffdc structure
+	ffdc.hwp_errorinfo.cdg_targets.clear();
+
+	auto clk_pos = hwCallout.clkPos;
+	PredicatePostfixExpr pred;
+	pred.push(std::make_shared<PredicateAttrVal<ATTR_TYPE>>(TYPE_OSCREFCLK))
+	    .push(std::make_shared<PredicateAttrVal<ATTR_POSITION>>(clk_pos))
+	    .And();
+	auto &ts = TargetService::instance();
+	auto top = ts.getTopLevelTarget();
+	auto tgts = ts.getAssociated(top, AssociationType::childByPhysical,
+				     RecursionLevel::all, &pred);
+	if (tgts.empty()) {
+		FAPI_ERR(
+		    "oscrefclk target not found for clock position(%d) :"
+		    "Warning: Skipping custom clock error callout handling",
+		    clk_pos);
+	}
+
+	for (auto &&tgt : tgts) {
+		EntityPath entityPath;
+		if (!tgt->template tryGetAttr<TARGETING::ATTR_PHYS_PATH>(
+			entityPath)) {
+			CDG_Target cdg_target;
+			cdg_target.target_entity_path.assign(
+			    reinterpret_cast<const uint8_t *>(&entityPath),
+			    reinterpret_cast<const uint8_t *>(&entityPath) +
+				sizeof(entityPath));
+			cdg_target.deconfigure = true;
+			cdg_target.guard = false;
+			cdg_target.callout = false;
+			ffdc.hwp_errorinfo.cdg_targets.push_back(cdg_target);
+			// set FFDC type
+			ffdc.ffdc_type = FFDC_TYPE_SPARE_CLOCK_INFO;
+		} else {
+			FAPI_ERR(
+			    "target does not have ATTR_PHYS_PATH attribute");
+		}
+		break;
+	}
 }
 
 /**

@@ -3,13 +3,12 @@
 #include <targeting/target_service.H>
 namespace fapi2
 {
-
 // Create specific target
 // TARGET_TYPE_SYSTEM
 template <>
 Target<TARGET_TYPE_SYSTEM, MULTICAST_OR, plat_target_handle_t>::Target()
 {
-    iv_handle = TARGETING::TargetService::instance().getTopLevelTarget();
+	iv_handle = TARGETING::TargetService::instance().getTopLevelTarget();
 }
 
 } // namespace fapi2

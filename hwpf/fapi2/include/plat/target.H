@@ -11,14 +11,60 @@
 #include <plat_trace.H>
 #include <stdio.h>
 #include <string.h>
+#include <targeting/predicates/predicateattrval.H>
+#include <targeting/predicates/predicatepostfixexpr.H>
+#include <targeting/target_service.H>
+#include <targeting/xmltohb/attributeenums.H>
+#include <targeting/xmltohb/attributestructs.H>
+#include <targeting/xmltohb/attributetraits.H>
 
 #include <algorithm>
 #include <array>
+#include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <vector>
-
 namespace fapi2
 {
+// TODO: need to check if we can auto-generate this code so that
+// it can be used both by hostboot and bmc
+inline TARGETING::TYPE fapi2ToTargetingType(fapi2::TargetType t)
+{
+	static const std::unordered_map<fapi2::TargetType, TARGETING::TYPE>
+	    map = {
+		{fapi2::TARGET_TYPE_SYSTEM, TARGETING::TYPE_SYS},
+		{fapi2::TARGET_TYPE_DIMM, TARGETING::TYPE_DIMM},
+		{fapi2::TARGET_TYPE_PROC_CHIP, TARGETING::TYPE_PROC},
+		{fapi2::TARGET_TYPE_FC, TARGETING::TYPE_FC},
+		{fapi2::TARGET_TYPE_CORE, TARGETING::TYPE_CORE},
+		{fapi2::TARGET_TYPE_EQ, TARGETING::TYPE_EQ},
+		{fapi2::TARGET_TYPE_MI, TARGETING::TYPE_MI},
+		{fapi2::TARGET_TYPE_PERV, TARGETING::TYPE_PERV},
+		{fapi2::TARGET_TYPE_PEC, TARGETING::TYPE_PEC},
+		{fapi2::TARGET_TYPE_PHB, TARGETING::TYPE_PHB},
+		{fapi2::TARGET_TYPE_MC, TARGETING::TYPE_MC},
+		{fapi2::TARGET_TYPE_OMI, TARGETING::TYPE_OMI},
+		{fapi2::TARGET_TYPE_OMIC, TARGETING::TYPE_OMIC},
+		{fapi2::TARGET_TYPE_MCC, TARGETING::TYPE_MCC},
+		{fapi2::TARGET_TYPE_OCMB_CHIP, TARGETING::TYPE_OCMB_CHIP},
+		{fapi2::TARGET_TYPE_MEM_PORT, TARGETING::TYPE_MEM_PORT},
+		{fapi2::TARGET_TYPE_NMMU, TARGETING::TYPE_NMMU},
+		{fapi2::TARGET_TYPE_PAU, TARGETING::TYPE_PAU},
+		{fapi2::TARGET_TYPE_IOHS, TARGETING::TYPE_IOHS},
+		{fapi2::TARGET_TYPE_PAUC, TARGETING::TYPE_PAUC},
+		{fapi2::TARGET_TYPE_PMIC, TARGETING::TYPE_PMIC},
+		{fapi2::TARGET_TYPE_GENERICI2CSLAVE,
+		 TARGETING::TYPE_GENERIC_I2C_DEVICE},
+		{fapi2::TARGET_TYPE_IOLINK, TARGETING::TYPE_SMPGROUP},
+		{fapi2::TARGET_TYPE_MEMBUF_CHIP, TARGETING::TYPE_MEMBUF},
+		{fapi2::TARGET_TYPE_EX, TARGETING::TYPE_EX},
+	    };
+
+	auto it = map.find(t);
+	assert(it != map.end() &&
+	       "Unsupported fapi2::TargetType in toTargetingTypeRuntime()");
+	return it->second;
+}
 
 template <TargetType K, MulticastType M, typename V>
 static constexpr void plat_apply_target_limits(void)
@@ -28,7 +74,7 @@ static constexpr void plat_apply_target_limits(void)
 }
 
 template <TargetType T, MulticastType M, typename V>
-inline void Target<T, M, V>::mcUpdateHandle(){};
+inline void Target<T, M, V>::mcUpdateHandle() {};
 
 ///
 /// @brief Assignment Operator.
@@ -117,26 +163,26 @@ template <TargetType T>
 inline std::vector<Target<T, M, V>>
     Target<K, M, V>::getChildren(const TargetState i_state) const
 {
-    //TODO:switch to targeting
+	// TODO:switch to targeting
 	std::vector<Target<T>> targets;
 	return targets;
 }
 
 // @brief Get this target's children, filtered
-// @tparam T The type of the parent
+// @tparam K The type of the parent
 // @tparam T_SELF The type of target on which this is called
 // @tparam V the type of the target's Value
 // @param[in] i_filter The desired chiplet filter
 // @param[in] i_state The desired TargetState of the children
 // @return std::vector<Target<T> > a vector of present/functional children
 
-template <TargetType T_SELF, MulticastType M, typename V>
+template <TargetType K, MulticastType M, typename V>
 template <TargetType T>
 inline std::vector<Target<T, M, V>>
-    Target<T_SELF, M, V>::getChildren(const TargetFilter i_filter,
-				      const TargetState i_state) const
+    Target<K, M, V>::getChildren(const TargetFilter i_filter,
+				 const TargetState i_state) const
 {
-    //TODO: switch to targeting
+	// TODO: switch to targeting
 	std::vector<Target<T, M, V>> children;
 	return children;
 }
@@ -170,7 +216,11 @@ inline fapi2::ReturnCodes
 template <TargetType K, MulticastType M, typename V>
 inline bool Target<K, M, V>::isFunctional(void) const
 {
-    //TODO: switch to targeting
+	TARGETING::HwasState hwasState{};
+	if (this->get()->template tryGetAttr<TARGETING::ATTR_HWAS_STATE>(
+		hwasState)) {
+		return hwasState.functional;
+	}
 	return false;
 }
 
@@ -184,10 +234,11 @@ inline bool Target<K, M, V>::isFunctional(void) const
 template <TargetType K, MulticastType M, typename V>
 inline uint8_t Target<K, M, V>::getChipletNumber(void) const
 {
-    //TODO:switch to targeting
-    return 0;
+	uint8_t chiplet_id = 0;
+	this->get()->template tryGetAttr<TARGETING::ATTR_CHIPLET_ID>(
+	    chiplet_id);
+	return chiplet_id;
 }
-
 
 ///
 /// @brief Return the string interpretation of this target
@@ -200,10 +251,32 @@ inline uint8_t Target<K, M, V>::getChipletNumber(void) const
 /// representation of the target
 ///
 template <TargetType T, MulticastType M, typename V>
-inline void toString(const Target<T, M, V> &i_target, char *i_buffer,
+inline void toString(const Target<T, M, V> &i_target, char *io_buffer,
 		     size_t i_bsize)
 {
-    //TODO: switch to targeting
+	TARGETING::ConstTargetPtr target = i_target.get();
+	TARGETING::ATTR_FAPI_NAME_type fapiName = {0};
+	if (!target->template tryGetAttr<TARGETING::ATTR_FAPI_NAME>(fapiName)) {
+		std::cerr << "ERROR: Cannot read FAPI_NAME attribute\n";
+		if (i_bsize > 0) {
+			io_buffer[0] = '\0';
+		}
+		return;
+	}
+
+	std::string_view name{reinterpret_cast<const char *>(fapiName)};
+	size_t copy_len =
+	    std::min(i_bsize - 1, name.size()); // leave room for '\0'
+
+	if (i_bsize > 0) {
+		std::memcpy(io_buffer, name.data(), copy_len);
+		io_buffer[copy_len] = '\0';
+	}
+
+	if (copy_len < name.size()) {
+		printf("Buffer too small: need %zu bytes, got %zu for %s \n",
+		       name.size() + 1, i_bsize, name.data());
+	}
 }
 
 ///
@@ -225,6 +298,43 @@ inline void toString(const Target<T, M, V> *i_target, char *i_buffer,
 }
 
 ///
+/// @brief Get a target from its Type and instance info
+/// @tparam T The type of the target to return
+/// @tparam V type of the targets value
+/// @param[in] i_type   - Type of target to find
+/// @param[in] instance - instance of the target to find
+///
+/// @return Target<T>* pointer to a target of type T
+///
+/// NOTE: Function caller owns the object returned.
+///
+template <TargetType T, MulticastType M = MULTICAST_OR,
+	  typename V = fapi2::plat_target_handle_t>
+inline Target<T, M, V> *getTarget(TargetType type, uint8_t instance)
+
+{
+	using namespace TARGETING;
+	auto targetingType = fapi2ToTargetingType(T);
+	PredicatePostfixExpr pred;
+	pred.push(std::make_shared<PredicateAttrVal<TARGETING::ATTR_TYPE>>(
+		      targetingType))
+	    .push(std::make_shared<PredicateAttrVal<TARGETING::ATTR_FAPI_POS>>(
+		instance))
+	    .And();
+
+	auto &ts = TargetService::instance();
+	auto top = ts.getTopLevelTarget();
+	auto targets = ts.getAssociated(top, AssociationType::childByPhysical,
+					RecursionLevel::all, &pred);
+
+	// we should not find more than one target
+	assert(targets.size() == 1 &&
+	       "Expected exactly one target in the result");
+
+	return new Target<T, M, V>(targets.front());
+}
+
+///
 /// @brief Get an enumerated target of a specific type
 /// @tparam T The type of the target
 /// @param[in] ordinal representing the ordinal number of
@@ -234,25 +344,22 @@ inline void toString(const Target<T, M, V> *i_target, char *i_buffer,
 template <TargetType T, MulticastType M, typename V>
 inline Target<T, M, V> getTarget(uint64_t ordinal)
 {
-    //TODO: switch to targeting
-	return Target<T, M, V>();
+	using namespace TARGETING;
+	auto targetingType = fapi2ToTargetingType(T);
+	PredicatePostfixExpr pred;
+	pred.push(std::make_shared<PredicateAttrVal<TARGETING::ATTR_TYPE>>(
+		      targetingType))
+	    .push(std::make_shared<PredicateAttrVal<TARGETING::ATTR_FAPI_POS>>(
+		ordinal))
+	    .And();
+
+	auto &ts = TargetService::instance();
+	auto top = ts.getTopLevelTarget();
+	auto targets = ts.getAssociated(top, AssociationType::childByPhysical,
+					RecursionLevel::all, &pred);
+	assert(targets.size() == 1 &&
+	       "Expected exactly one target in the result");
+
+	return Target<T, M, V>(targets.front());
 }
-
-// @brief Get a target from its Type and instance info
-// @tparam T The type of the target to return
-// @tparam V type of the targets value
-// @param[in] i_type   - Type of target to find
-// @param[in] instance - instance of the target to find
-//
-// @return Target<T>* pointer to a target of type T
-
-// NOTE: Function caller owns the object returned.
-
-template <TargetType T, MulticastType M = MULTICAST_OR,
-	  typename V = fapi2::plat_target_handle_t>
-inline Target<T, M, V> *getTarget(TargetType i_type, uint8_t instance)
-{
-    return nullptr;
-}
-
 } // namespace fapi2

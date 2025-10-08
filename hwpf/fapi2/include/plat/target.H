@@ -26,6 +26,11 @@
 #include <vector>
 namespace fapi2
 {
+
+// For non-type template parameters (like enums, ints, etc.)
+template <auto V>
+inline constexpr bool always_false_v_helper_v = false;
+
 // TODO: need to check if we can auto-generate this code so that
 // it can be used both by hostboot and bmc
 inline TARGETING::TYPE fapi2ToTargetingType(fapi2::TargetType t)
@@ -203,8 +208,11 @@ inline fapi2::ReturnCodes
     Target<K, M, V>::getOtherEnd(Target<T, M, V> &o_target,
 				 const TargetState i_state) const
 {
-	// To keep the compiler quiet about unused variables
 	static_cast<void>(i_state);
+	// throw compilation error if someone invokes this method
+	static_assert(always_false_v_helper_v<K>,
+		      "Target::getChildren() is unimplemented — this method "
+		      "should not be instantiated or called yet.");
 	return FAPI2_RC_SUCCESS;
 }
 

@@ -141,17 +141,18 @@ template <TargetType K, MulticastType M, typename V>
 template <TargetType T>
 inline Target<T, M, V> Target<K, M, V>::getParent(void) const
 {
-	// It's forbidden to strip multicast from a target below PROC_CHIP
-	// level: Since a multicast might end up expanding to more than one
-	// unicast target, users are required to use getChildren if they want to
-	// map back to unicast.
-	static_assert(!(((K ^ T) & TARGET_TYPE_MULTICAST) &&
-			((T & TARGET_TYPE_CHIPLETS) != TARGET_TYPE_NONE)),
-		      "Parent target for a multicast target must also be "
-		      "multicast or PROC_CHIP");
+	using namespace TARGETING;
+	auto parentTargetType = fapi2ToTargetingType(T);
+	PredicateAttrVal<ATTR_TYPE> pred(parentTargetType);
 
-	// For testing
-	return Target<T, M, V>(iv_handle);
+	auto &ts = TargetService::instance();
+	auto targets =
+	    ts.getAssociated(this->get(), AssociationType::parentByPhysical,
+			     RecursionLevel::all, &pred);
+
+	assert(targets.size() == 1 &&
+	       "getParent(): Expected exactly one parent target");
+	return Target<T, M, V>(targets.front());
 }
 
 ///
@@ -168,9 +169,33 @@ template <TargetType T>
 inline std::vector<Target<T, M, V>>
     Target<K, M, V>::getChildren(const TargetState i_state) const
 {
-	// TODO:switch to targeting
-	std::vector<Target<T>> targets;
-	return targets;
+	using namespace TARGETING;
+
+	std::vector<Target<T, M, V>> children;
+	auto &ts = TargetService::instance();
+	auto childTargetType = fapi2ToTargetingType(T);
+	PredicateAttrVal<ATTR_TYPE> pred(childTargetType);
+
+	for (auto &&child :
+	     ts.getAssociated(this->get(), AssociationType::childByPhysical,
+			      RecursionLevel::all, &pred)) {
+		TARGETING::HwasState hwas{};
+		if (!child->template tryGetAttr<ATTR_HWAS_STATE>(hwas)) {
+			continue;
+		}
+		if (i_state == TARGET_STATE_PRESENT && hwas.present) {
+			children.push_back(child);
+		} else if (i_state == TARGET_STATE_FUNCTIONAL &&
+			   hwas.functional) {
+			children.push_back(child);
+		} else if (i_state == TARGET_STATE_NOT_PRESENT &&
+			   !hwas.present) {
+			children.push_back(child);
+		} else if (i_state == fapi2::TARGET_STATE_ALL) {
+			children.push_back(child);
+		}
+	}
+	return children;
 }
 
 // @brief Get this target's children, filtered
@@ -180,16 +205,35 @@ inline std::vector<Target<T, M, V>>
 // @param[in] i_filter The desired chiplet filter
 // @param[in] i_state The desired TargetState of the children
 // @return std::vector<Target<T> > a vector of present/functional children
-
 template <TargetType K, MulticastType M, typename V>
 template <TargetType T>
 inline std::vector<Target<T, M, V>>
     Target<K, M, V>::getChildren(const TargetFilter i_filter,
 				 const TargetState i_state) const
 {
-	// TODO: switch to targeting
-	std::vector<Target<T, M, V>> children;
-	return children;
+	using namespace TARGETING;
+
+	std::vector<Target<T, M, V>> children = getChildren<T>(i_state);
+	std::vector<Target<T, M, V>> filteredChildren;
+	for (auto &&child : children) {
+		ConstTargetPtr platTarget =
+		    static_cast<ConstTargetPtr>(child.get());
+		uint8_t chiplet_num = 0;
+		uint64_t bitMask = 0x0;
+
+		if (!platTarget->tryGetAttr<TARGETING::ATTR_CHIP_UNIT>(
+			chiplet_num)) {
+			bitMask = 0xFFFFFFFFFFFFFFFFULL; // keep by default
+		} else if (chiplet_num < 64) {
+			bitMask = 0x8000000000000000ULL >> chiplet_num;
+		}
+
+		if (i_filter & bitMask) {
+			filteredChildren.push_back(child);
+		}
+	}
+
+	return filteredChildren;
 }
 
 ///
@@ -220,16 +264,15 @@ inline fapi2::ReturnCodes
 /// @brief Is the target functional?
 /// @return true if target is functional, false if non-functional
 ///
-
 template <TargetType K, MulticastType M, typename V>
 inline bool Target<K, M, V>::isFunctional(void) const
 {
 	TARGETING::HwasState hwasState{};
-	if (this->get()->template tryGetAttr<TARGETING::ATTR_HWAS_STATE>(
+	if (!this->get()->template tryGetAttr<TARGETING::ATTR_HWAS_STATE>(
 		hwasState)) {
-		return hwasState.functional;
+		return false;
 	}
-	return false;
+	return hwasState.functional;
 }
 
 ///

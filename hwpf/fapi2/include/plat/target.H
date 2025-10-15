@@ -413,4 +413,11 @@ inline Target<T, M, V> getTarget(uint64_t ordinal)
 
 	return Target<T, M, V>(targets.front());
 }
+
+template <>
+inline Target<TARGET_TYPE_SYSTEM, MULTICAST_OR, plat_target_handle_t>::Target()
+{
+	iv_handle = TARGETING::TargetService::instance().getTopLevelTarget();
+}
+
 } // namespace fapi2

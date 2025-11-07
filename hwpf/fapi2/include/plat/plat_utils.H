@@ -32,7 +32,6 @@
 
 namespace fapi2
 {
-
 // Platforms are expected to define this
 static const PlatformType PLATFORM = PLAT_EXAMPLE;
 

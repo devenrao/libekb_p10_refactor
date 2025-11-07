@@ -47,10 +47,14 @@ AM_PROG_AR
 LT_INIT
 AC_CHECK_TOOL([OBJCOPY],[objcopy])
 
-AC_CHECK_LIB([pdbg], [pdbg_targets_init], [LIBS="-lpdbg -lfdt $LIBS"], [], [-lfdt])
-if test x"$ac_cv_lib_pdbg_pdbg_targets_init" != xyes ; then
-	AC_MSG_ERROR([Unable to find pdbg library])
-fi
+PKG_CHECK_MODULES([TARGETING],   [libtargeting])
+PKG_CHECK_MODULES([HWACCESS],    [libhwaccess])
+PKG_CHECK_MODULES([TARGETSVC],   [libtargetsvc])
+PKG_CHECK_MODULES([TRANSPORT],   [libtransport])
+LIBS="$TARGETING_LIBS $HWACCESS_LIBS $TARGETSVC_LIBS $TRANSPORT_LIBS $LIBS"
+
+AC_LANG([C++])
+CXXFLAGS="$CXXFLAGS -std=c++20"
 
 m4_syscmd([make -f Makefile.generate > Makefile.proc.am])
 

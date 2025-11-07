@@ -1,9 +1,6 @@
-extern "C" {
-#include <assert.h>
-#include <libpdbg.h>
-#include <stdarg.h>
-#include <stdio.h>
-}
+#include <cassert>
+#include <cstdarg>
+#include <cstdio>
 
 #include "libekb.H"
 #include "plat_error.H"
@@ -21,6 +18,11 @@ extern "C" {
 #include <cstring>
 #include <vector>
 
+#include <targeting/target.H>
+#include <targeting/common/entitypath.H>
+#include <targeting/xmltohb/attributeenums.H>
+#include <targeting/xmltohb/attributetraits.H>
+
 static libekb_log_func_t __libekb_log_fn;
 static void* __libekb_log_priv;
 static int __libekb_log_level = LIBEKB_LOG_ERR;
@@ -34,11 +36,6 @@ int libekb_init(void)
 {
 	if (!__libekb_log_fn)
 		libekb_set_logfunc(libekb_log_default, NULL);
-
-	if (!pdbg_target_root()) {
-		libekb_log(LIBEKB_LOG_ERR, "libpdbg not initialized\n");
-		return -1;
-	}
 
 	return 0;
 }
@@ -73,6 +70,26 @@ void libekb_log(int loglevel, const char* fmt, ...)
 	va_start(ap, fmt);
 	__libekb_log_fn(__libekb_log_priv, fmt, ap);
 	va_end(ap);
+}
+
+static void getTgtEntityPath(const TARGETING::ConstTargetPtr &i_target,
+			     std::vector<uint8_t> &o_buffer)
+{
+    TARGETING::AttributeTraits<TARGETING::ATTR_PHYS_PATH>::Type entityPath;
+    if (!i_target->template tryGetAttr<TARGETING::ATTR_PHYS_PATH>(entityPath))
+    {
+        std::cerr << "Could not read ATTR_PHYS_PATH attribute\n";
+        return;
+    }
+
+    // Calculate total size in bytes: header + elements actually present
+    size_t sizeBytes = sizeof(uint8_t) +    // header
+                       entityPath.getSize() *
+                           sizeof(TARGETING::EntityPath::PathElement);
+
+    // Copy the raw bytes into o_buffer
+    auto raw = reinterpret_cast<const uint8_t*>(&entityPath);
+    o_buffer.assign(raw, raw + sizeBytes);
 }
 
 /*
@@ -119,7 +136,7 @@ static void get_HWPErrorInfo(const fapi2::ReturnCode& rc,
 		hwcallout_data.callout_priority =
 		    fapi2::plat_CalloutPriority_tostring(
 			hwcallout->iv_calloutPriority);
-		fapi2::getTgtEntityPath(hwcallout->iv_refTarget,
+		getTgtEntityPath(hwcallout->iv_refTarget,
 					hwcallout_data.target_entity_path);
 		hwcallout_data.clkPos = hwcallout->iv_clkPos;
 
@@ -144,7 +161,7 @@ static void get_HWPErrorInfo(const fapi2::ReturnCode& rc,
 	// which are present in error xml for particular error
 	for (auto cdg : errorInfo->iv_CDGs) {
 		CDG_Target cdg_tgt_data;
-		fapi2::getTgtEntityPath(cdg->iv_target,
+		getTgtEntityPath(cdg->iv_target,
 					cdg_tgt_data.target_entity_path);
 		cdg_tgt_data.callout = cdg->iv_callout;
 		cdg_tgt_data.callout_priority =
